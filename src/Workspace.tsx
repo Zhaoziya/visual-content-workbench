@@ -10,7 +10,7 @@ import DraftTransition, { type FlightOrigin } from './DraftTransition';
 import CaptureInspiration from './CaptureInspiration';
 import { assetUrl } from './assetPath';
 
-const bubbleSizes = [294, 216, 258, 188, 232, 210, 242, 198, 230, 184];
+const bubbleSizes = [294, 216, 258, 188, 232, 210, 242, 198, 230, 184].map(size => size * .75);
 const bubbleHeights = [[30, 65, 0, 95, 35], [340, 420, 335, 405, 350]];
 const bubbleOffsets = [[-24, 20, 0, -30, 18], [15, -30, 30, -5, -25]];
 
@@ -269,8 +269,13 @@ export default function Workspace() {
     try { await refresh(); } catch { setError('草稿列表读取失败，请重试。'); }
   }
   async function showLibrary() {
-    setCapture(null);setLibraryPage(0);setSelectedDraft(null);setLibraryOpen(true);
-    try { await refresh(); } catch { setError('草稿列表读取失败，请重试。'); }
+    if (libraryOpen) {
+      setLibraryOpen(false);
+      dialog.current?.close();
+    } else {
+      setCapture(null);setLibraryPage(0);setSelectedDraft(null);setLibraryOpen(true);
+      try { await refresh(); } catch { setError('草稿列表读取失败，请重试。'); }
+    }
   }
   async function removeDraft(id: string) {
     if (deleteLock.current) return;
@@ -298,7 +303,7 @@ export default function Workspace() {
       </button>
     </div>
     <div className="forest-foreground" aria-hidden="true"><i/><i/><i/></div>
-    <button ref={jar} className="forest-jar" aria-label="打开草稿" aria-haspopup="dialog" disabled={busy} onClick={showLibrary}>
+    <button ref={jar} className="forest-jar" aria-label={libraryOpen ? '关闭草稿' : '打开草稿'} aria-haspopup="dialog" disabled={busy} onClick={showLibrary}>
       <span className="jar-art" aria-hidden="true">
         <img className="jar-body" src={assetUrl('assets/home/firefly-jar-open-v1.png')} alt="" />
         <img className="jar-lid" src={assetUrl('assets/home/firefly-jar-wood-v3.png')} alt="" />

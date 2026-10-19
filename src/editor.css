@@ -147,3 +147,7 @@
   .app-shell .glass,.color-editor.glass { background:var(--ui-bg); backdrop-filter:none; -webkit-backdrop-filter:none; border-color:var(--ui-control-border); }
   .app-shell::before { display:none; }
 }
+@media(min-width:768px) {
+  #root { position:fixed; inset:0; width:133.333333vw; height:133.333333dvh; transform:scale(.75); transform-origin:top left; }
+  #root .forest-home, #root .app-shell { height:133.333333dvh; }
+}
