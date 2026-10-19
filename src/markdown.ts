@@ -3,7 +3,6 @@ import DOMPurify from 'dompurify';
 import { assetUrl, resolveAssetUrl } from './assetPath';
 
 export type Block = { html: string; heading: boolean; breakBefore?: boolean };
-const builtins:Record<string,string>={'首页.png':assetUrl('assets/首页.png'),'设计稿1 .png':assetUrl('assets/设计稿1 .png'),'设计稿2.png':assetUrl('assets/设计稿2.png')};
 export const escapeHTML=(value:string)=>value.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
 export function normalizePromptSyntax(source:string){
   return marked.lexer(source,{gfm:true}).map(token=>{
@@ -26,10 +25,10 @@ function prepareHTML(html:string,assets:Record<string,string>,decorateLists=true
   wrapper.querySelectorAll('img').forEach(img=>{
     const raw=img.getAttribute('src')||'';
     let name=raw;try{name=decodeURIComponent(raw.split('/').at(-1)||raw);}catch{ /* Use the literal filename when percent encoding is invalid. */ }
-    const src=resolveAssetUrl(assets[raw]||assets[name]||builtins[name]||raw);
+    const src=resolveAssetUrl(assets[raw]||assets[name]||raw);
     if(!/^(data:image\/(?:png|jpeg|webp|gif|svg\+xml);|https?:\/\/)/i.test(src)&&!src.startsWith(assetUrl('assets/'))) img.src=assetUrl('missing-image');
     else img.src=src;
-    if(assets[raw]||builtins[raw])img.setAttribute('data-asset-name',raw);
+    if(assets[raw])img.setAttribute('data-asset-name',raw);
     const width=img.getAttribute('width');
     if(width?.endsWith('%')&&Number.isFinite(parseFloat(width)))img.style.width=`${Math.max(10,Math.min(100,parseFloat(width)))}%`;
     img.crossOrigin='anonymous';img.loading='eager';
