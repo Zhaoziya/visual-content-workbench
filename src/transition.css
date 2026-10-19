@@ -1,0 +1,19 @@
+.draft-editor-stage { min-width:0; }
+.draft-editor-stage.is-entering { position:fixed; inset:0; z-index:20; visibility:hidden; overflow:hidden; }
+.draft-editor-stage.is-fading { position:fixed; inset:0; z-index:20; overflow:auto; animation:editor-fade-in .32s ease-out both; }
+@keyframes editor-fade-in { from { opacity:0; } to { opacity:1; } }
+.draft-transition { position:fixed; inset:0; z-index:21; overflow:hidden; pointer-events:none; }
+.journey-light { position:absolute; width:52px; height:52px; margin:-26px; filter:drop-shadow(0 0 14px rgba(237,237,88,.9)); will-change:transform,opacity; }
+.journey-light .flight-body { left:21px; top:19px; width:10px; height:16px; background:#eded58; box-shadow:0 0 9px #eded58,0 0 24px rgba(237,237,88,.95),0 0 44px rgba(237,237,88,.55); }
+.journey-light .flight-wing { top:12px; width:12px; height:18px; background:rgba(237,237,188,.4); border-color:rgba(237,237,188,.8); }
+.journey-light .flight-wing.left { left:13px; }
+.journey-light .flight-wing.right { right:13px; }
+.flight-particle { position:absolute; top:0; left:0; opacity:0; will-change:transform,opacity; }
+.flight-firefly { width:18px; height:18px; margin:-9px; }
+.flight-body { position:absolute; left:6px; top:5px; width:6px; height:10px; border-radius:50%; background:#eded58; box-shadow:0 0 6px #eded58,0 0 16px rgba(237,237,88,.9),0 0 30px rgba(237,237,88,.35); }
+.flight-wing { position:absolute; top:1px; width:8px; height:12px; border:1px solid rgba(237,237,188,.75); border-radius:80% 20% 70% 30%; background:rgba(237,237,188,.3); transform-origin:bottom center; }
+.flight-wing.left { left:0; rotate:-35deg; animation:flight-flutter 80ms ease-in-out infinite alternate; }
+.flight-wing.right { right:0; rotate:35deg; animation:flight-flutter 80ms ease-in-out infinite alternate-reverse; }
+.flight-trace { width:3px; height:3px; margin:-1.5px; border-radius:50%; background:#ffe6a0; box-shadow:0 0 8px rgba(255,218,106,.7); }
+@keyframes flight-flutter { from { transform:scaleX(.4); } to { transform:scaleX(1); } }
+@media(prefers-reduced-motion:reduce) { .draft-transition { display:none; } .flight-wing,.draft-editor-stage.is-fading { animation:none; } }

@@ -1,0 +1,63 @@
+.note-sheet {
+  position:relative; width:1242px; height:1660px; padding:54px 68px 92px; overflow:hidden; color:var(--note-text);
+  background-color:var(--note-paper); background-position:center; background-size:cover; background-repeat:no-repeat;
+  font-family:"PingFang SC","Microsoft YaHei",sans-serif; font-size:var(--note-font,36px); line-height:1.65;
+}
+.note-tint { position:absolute; inset:0; background:var(--note-paper); opacity:var(--note-overlay,0); pointer-events:none; }
+.note-header,.note-content,.note-footer { position:relative; }
+.note-kicker { display:inline-block; font-size:29px; font-weight:900; padding-bottom:14px; border-bottom:8px solid var(--note-highlight); line-height:1.5; }
+.note-cover-title { margin:32px 0 18px; font-size:100px; line-height:1.14; white-space:pre-line; font-weight:800; overflow-wrap:anywhere; }
+.note-subtitle { margin:0; font-size:41px; color:var(--note-secondary); font-weight:500; line-height:1.5; overflow-wrap:anywhere; }
+.note-content { margin-top:40px; display:flex; flex-direction:column; gap:24px; }
+.note-kicker { max-width:100%; overflow-wrap:anywhere; white-space:pre-wrap; }
+.note-group p,.note-group li { text-align:justify; text-align-last:left; }
+.note-group:has(>ul)+.note-group:has(>ul) { margin-top:calc(16px - var(--note-gap,24px)); }
+.note-group mark { color:var(--note-on-highlight); background:var(--note-highlight); }
+.note-group { flex:none; overflow-wrap:anywhere; min-width:0; }
+.note-group >:first-child { margin-top:0; }
+.note-group >:last-child { margin-bottom:0; }
+.note-group h1 { display:flex; align-items:center; gap:16px; font-size:44px; line-height:1.16; font-weight:800; margin:48px 0 24px; }
+.note-group h1::before { content:""; width:14px; height:48px; flex:none; background:var(--note-highlight); border-radius:5px; }
+.note-group h2 { font-size:39px; line-height:1.35; font-weight:800; margin:40px 0 24px; }
+.note-group h3 { font-size:38px; line-height:1.4; margin:32px 0 24px; }
+.note-group h4 { font-size:36px; line-height:1.45; margin:0 0 20px; }
+.note-group h5,.note-group h6 { font-size:34px; line-height:1.5; margin:0 0 16px; }
+.note-group p { font-size:var(--note-font,36px); line-height:1.65; margin:0 0 24px; }
+.note-group strong { font-weight:800; }
+.note-group ul,.note-group ol { padding-left:48px; margin:0; }
+.note-group li { padding-left:8px; font-size:var(--note-font,36px); line-height:1.6; }
+.note-group li p { margin:8px 0 0; }
+.note-group li::marker { color:var(--note-secondary); font-weight:700; }
+.note-group >ol { padding:0; list-style:none; }
+.note-group >ol >li { position:relative; padding:20px 0 20px 76px; }
+.note-group >ol >li::before { content:attr(data-list-number); position:absolute; top:50%; transform:translateY(-50%); left:0; width:56px; font-size:34px; line-height:1.5; font-weight:700; color:var(--note-secondary); }
+.note-group >ol >li+li { border-top:1px solid var(--note-border); }
+.note-group:has(>ol)+.note-group:has(>ol) { margin-top:calc(0px - var(--note-gap,24px)); }
+.note-group:has(>ol)+.note-group:has(>ol) >ol >li:first-child { border-top:1px solid var(--note-border); }
+.note-group >ol >li >p:first-child { margin-top:0; }
+.note-group >ol >li .note-list-title { display:block; font-size:38px; font-weight:800; line-height:1.35; margin-bottom:12px; }
+.note-group blockquote { margin:0; color:var(--note-secondary); padding:0 0 0 24px; border-left:6px solid var(--note-secondary); font-size:34px; }
+.note-group blockquote p { font-size:34px; line-height:1.65; }
+.note-group a { color:var(--note-text); text-decoration:underline; text-decoration-color:var(--note-accent); text-underline-offset:5px; }
+.note-group pre { padding:28px 32px; background:var(--note-panel); border:2px solid var(--note-border); border-radius:8px; margin:0; white-space:pre-wrap; overflow-wrap:anywhere; font-size:30px; line-height:1.6; }
+.note-group code { font-family:ui-monospace,"PingFang SC",monospace; font-size:.9em; }
+.note-group em,.note-group i { font-style:italic; font-synthesis:style; }
+.note-group p code { background:var(--note-panel); padding:0 6px; border-radius:4px; }
+.note-group .note-prompt { background:var(--note-prompt-surface); border:2px solid var(--note-border); border-radius:36px; padding:24px 32px; box-shadow:0 8px 24px rgba(24,52,71,.08); }
+.note-prompt-label { display:block; padding:0; margin-bottom:10px; color:var(--note-accent); background:transparent; font-size:36px; line-height:1.5; font-weight:800; }
+.note-group .note-prompt p { font-size:var(--note-font,36px); line-height:1.65; margin:0 0 18px; white-space:pre-wrap; }
+.note-group .note-prompt p:last-child { margin:0; }
+.note-images { display:grid; grid-template-columns:minmax(0,1fr); margin:0; gap:24px; }
+.note-images-pair { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.note-group img { display:block; width:100%; max-width:100%; height:auto; max-height:var(--note-image-max-height,1200px); object-fit:contain; border:0; border-radius:var(--note-image-radius,8px); box-shadow:0 18px 40px rgba(5,61,91,.15); }
+.note-group table { width:100%; border-collapse:collapse; font-size:30px; margin:0; }
+.note-group th,.note-group td { padding:16px; border:1px solid var(--note-border); }
+.note-group th { background:var(--note-panel); text-align:left; }
+.note-footer { position:absolute; bottom:36px; left:68px; right:68px; display:flex; justify-content:space-between; gap:24px; border-top:1px solid var(--note-border); padding-top:18px; font-size:23px; line-height:1.5; color:var(--note-secondary); }
+.note-footer span:first-child { flex:1; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.note-footer span:last-child { white-space:nowrap; flex:none; margin-left:auto; }
+.note-group p,.note-group li,.note-group blockquote p,.note-group .note-prompt p { line-height:var(--note-line-height,1.65); }
+.note-group p:not(:last-child) { margin-bottom:var(--note-gap,24px); }
+.note-sheet.note-long { height:auto; min-height:1660px; padding-bottom:36px; display:flex; flex-direction:column; }
+.note-long .note-footer { position:relative; bottom:auto; left:auto; right:auto; margin-top:auto; padding-top:18px; }
+.note-long .note-content { margin-bottom:48px; }

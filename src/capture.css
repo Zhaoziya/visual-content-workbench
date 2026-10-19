@@ -1,0 +1,18 @@
+.forest-home.is-catching,.forest-home.is-catching button { cursor:none; }
+.capture-layer { position:fixed; inset:0; z-index:15; pointer-events:none; overflow:hidden; }
+.capture-net { --net-edge:#58432a; --net-ring:#d9b77e; --net-highlight:#fff0c6; --net-cloth:#dce7df; --net-thread:#e3e9dc; --net-wood:#bd9561; --net-wood-edge:#4b3927; --net-wood-light:#f1d5a1; position:absolute; left:0; top:0; width:135px; height:135px; margin:-45px -60px; will-change:transform; }
+.capture-net svg { width:100%; height:100%; overflow:visible; filter:drop-shadow(0 3px 4px rgba(0,0,0,.45)); transform-origin:75px 45px; transform:scaleX(-1); transition:transform .2s ease,filter .2s ease; }
+.capture-fly { position:absolute; left:0; top:0; width:52px; height:52px; margin:-26px; padding:0; border:0; background:none; pointer-events:auto; cursor:none; will-change:transform; animation:capture-emerge .55s ease-out; }
+.capture-fly .flight-body { left:21px; top:19px; width:10px; height:16px; background:#eded58; box-shadow:0 0 9px #eded58,0 0 24px rgba(237,237,88,.95),0 0 44px rgba(237,237,88,.55); }
+.capture-fly .flight-wing { top:12px; width:12px; height:18px; background:rgba(237,237,188,.4); border-color:rgba(237,237,188,.8); }
+.capture-fly .flight-wing.left { left:13px; }
+.capture-fly .flight-wing.right { right:13px; }
+.capture-fly.is-fleeing .flight-wing { animation-duration:50ms; }
+.capture-fly.is-fleeing .flight-body { box-shadow:0 0 12px #eded58,0 0 30px rgba(237,237,88,.95),0 0 54px rgba(237,237,88,.6); }
+.is-captured .capture-net svg { transform:scaleX(-1) scale(.87) rotate(-6deg); filter:drop-shadow(0 0 12px rgba(237,237,88,.55)); }
+.is-captured .capture-fly { filter:brightness(1.5); }
+@keyframes capture-emerge { from { opacity:0; } to { opacity:1; } }
+.capture-cancel { position:absolute; bottom:24px; left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:8px; min-height:44px; padding:8px 16px; border:1px solid var(--home-edge); border-radius:6px; background:var(--home-surface); color:var(--home-ink); pointer-events:auto; cursor:pointer!important; }
+.capture-cancel:disabled { opacity:0; pointer-events:none; }
+.capture-announcement { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+@media(pointer:coarse) { .capture-net { display:none; } .capture-fly { scale:1.6; } }

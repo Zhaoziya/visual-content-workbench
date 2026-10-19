@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.DS_Store
+*.tsbuildinfo
+qa/
+.npm-cache/
+主页素材/
+文档/
+design-reference/
+.agents/
+.claude/
+AGENTS.md
+DESIGN.md
+.env*
+!.env.example
