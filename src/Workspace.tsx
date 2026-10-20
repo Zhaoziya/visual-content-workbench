@@ -411,7 +411,7 @@ export default function Workspace() {
       {deleteError&&<p className="library-error" role="alert">{deleteError}</p>}
       {pageCount>1&&<nav className="library-pagination" aria-label="草稿分页"><button className="library-icon" title="上一页" aria-label="上一页" disabled={currentPage===0||deleting} onClick={()=>{setLibraryPage(currentPage-1);setSelectedDraft(null);setDeleteTarget(null);}}><ChevronLeft size={22}/></button><span>{currentPage+1} / {pageCount}</span><button className="library-icon" title="下一页" aria-label="下一页" disabled={currentPage===pageCount-1||deleting} onClick={()=>{setLibraryPage(currentPage+1);setSelectedDraft(null);setDeleteTarget(null);}}><ChevronRight size={22}/></button></nav>}
     </dialog>
-    <dialog className="storage-choice" ref={storageDialog} aria-labelledby="storage-choice-title" onCancel={event => { event.preventDefault(); if (!storageBusy) setPendingCreate(null); }} onClose={() => setPendingCreate(null)}>
+    <dialog className="storage-choice storage-intro" ref={storageDialog} aria-labelledby="storage-choice-title" onCancel={event => { event.preventDefault(); if (!storageBusy) setPendingCreate(null); }} onClose={() => setPendingCreate(null)}>
       <h2 id="storage-choice-title">草稿保存在哪里？</h2>
       <p>选择本地工作目录后，草稿会同时保存在文件夹和当前浏览器中。以后重新选择同一目录，可以读取其中的草稿。</p>
       <div className="storage-choice-actions">
