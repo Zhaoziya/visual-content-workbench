@@ -42,6 +42,13 @@
 .storage-choice .storage-warning { margin:14px 0 0; font-size:13px; color:#f1dbaa; }
 .storage-choice .storage-error { margin:12px 0 0; color:#ffb7af; font-size:14px; }
 .storage-cancel { display:block; margin:20px 0 0 auto; padding:8px 0; border:0; background:none; color:var(--home-muted); }
+.directory-access { box-sizing:border-box; width:min(390px,calc(100% - 32px)); padding:22px 24px; }
+.directory-access h2 { margin-bottom:10px; font-size:23px; }
+.directory-access p { margin-bottom:16px; font-size:14px; line-height:1.55; }
+.directory-access .storage-choice-actions { gap:8px; }
+.directory-access .storage-choice-actions button { min-height:42px; padding:8px 12px; font-size:14px; }
+.directory-access .storage-choice-actions svg { width:16px; height:16px; }
+.directory-access .storage-cancel { margin-top:12px; font-size:14px; }
 .draft-library { width:min(860px,calc(100% - 48px)); max-height:76dvh; margin:auto; padding:28px; border:1px solid var(--library-line); border-radius:8px; color:var(--home-ink); background:var(--library-glass); backdrop-filter:blur(28px) saturate(1.15); -webkit-backdrop-filter:blur(28px) saturate(1.15); box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 24px 80px rgba(0,0,0,.24); }
 .draft-library::backdrop { background:rgba(6,20,24,.16); }
 .draft-library[open] { display:flex; flex-direction:column; }
@@ -59,7 +66,8 @@
 .draft-delete-confirm p { margin:0 0 8px; overflow-wrap:anywhere; }
 .draft-delete-confirm small { color:var(--home-muted); font-size:13px; line-height:1.5; }
 .draft-delete-confirm >div { display:flex; justify-content:flex-end; gap:8px; margin-top:16px; }
-.draft-delete-confirm button { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:44px; padding:8px 16px; border:1px solid var(--home-edge); border-radius:6px; background:transparent; }
+.draft-delete-confirm button { display:inline-flex; align-items:center; justify-content:center; gap:5px; min-height:36px; padding:6px 10px; border:1px solid var(--home-edge); border-radius:6px; background:transparent; font-size:12px; }
+.draft-delete-confirm button svg { width:16px; height:16px; }
 .draft-delete-confirm .library-delete-confirm { color:var(--ui-danger); border-color:var(--ui-danger); }
 .draft-delete-confirm button:hover:not(:disabled) { background:rgba(255,255,255,.08); }
 .library-error { color:var(--ui-danger); font-size:14px; line-height:1.5; margin:16px 0 0; }

@@ -44,6 +44,19 @@
 .app-header .save-status { font-size:.8125rem; gap:6px; flex-shrink:0; }
 .save-status svg { color:var(--ui-success); }
 .status-error,.status-error svg { color:var(--ui-danger); }
+.save-reconnect { padding:0; border:0; background:none; cursor:pointer; }
+.save-reconnect:hover { text-decoration:underline; }
+.app-shell .editor-directory-access { color:var(--ui-text); background:var(--ui-floating-surface); border-color:var(--ui-glass-border); }
+.app-shell .editor-directory-access p { color:var(--ui-text-secondary); }
+.editor-directory-access .storage-choice-actions button { color:var(--ui-text); border-color:var(--ui-control-border); background:var(--ui-control-surface); }
+.editor-directory-access .storage-choice-actions .storage-folder { border-color:var(--ui-primary); background:var(--ui-selected); }
+.editor-directory-access .storage-error { color:var(--ui-danger); }
+.editor-directory-access .storage-cancel { color:var(--ui-text-secondary); }
+.editor-directory-footer { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:12px; }
+.editor-directory-footer .storage-cancel { margin:0 0 0 auto; }
+.storage-discard { padding:8px 0; border:0; background:none; color:var(--ui-danger); font-size:14px; }
+.storage-discard:hover { text-decoration:underline; }
+.editor-directory-access::backdrop { background:rgba(8,29,37,.55); }
 .header-actions { align-items:center; flex-shrink:0; }
 .app-shell .button,.color-editor .button { box-shadow:none; }
 .app-shell .button:hover:not(:disabled),.app-shell .icon-button:hover:not(:disabled),.color-editor .icon-button:hover:not(:disabled) { background:var(--ui-hover); border-color:var(--ui-control-border); }
@@ -59,6 +72,7 @@
 .quick-colors { gap:16px; }
 .quick-color { font-size:.875rem; }
 .quick-color .color-swatch { width:24px; height:24px; }
+.quick-colors .reset-colors { min-height:36px; padding:6px 10px; gap:6px; font-size:.8125rem; white-space:nowrap; }
 .settings-panel { margin-top:4px; max-height:240px; padding:8px 16px 16px; }
 .workspace { margin-top:8px; gap:8px; grid-template-columns:minmax(0,44fr) minmax(0,56fr); }
 .panel-header { min-height:48px; padding:4px 20px; }
@@ -150,4 +164,5 @@
 @media(min-width:768px) {
   #root { position:fixed; inset:0; width:133.333333vw; height:133.333333dvh; transform:scale(.75); transform-origin:top left; }
   #root .forest-home, #root .app-shell { height:133.333333dvh; }
+  .color-editor { transform:scale(.75); transform-origin:top left; }
 }

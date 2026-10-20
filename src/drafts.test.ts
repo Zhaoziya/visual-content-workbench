@@ -64,6 +64,13 @@ describe('local draft library', () => {
     await useBrowserStorage();
     expect(await getStorageMode()).toBe('browser');
   });
+  it('does not silently fall back to browser storage when a chosen directory is missing', async () => {
+    await useBrowserStorage();
+    database.set('rednote-storage-mode-v1', 'folder');
+    expect(await getStorageMode()).toBe('folder');
+    await expect(saveDocument('missing-directory', initialDraft)).rejects.toThrow('工作目录连接已丢失');
+    expect(await listDocuments()).toEqual([]);
+  });
   it('checks and renews permission on a stored directory without changing storage mode', async () => {
     const handle = {
       queryPermission: vi.fn().mockResolvedValue('prompt'),
@@ -130,5 +137,34 @@ describe('local draft library', () => {
     await saveDocument('old', { ...initialDraft, title: 'Migrated' });
     expect(files.has('rednote-draft-old.json')).toBe(false);
     expect([...files.keys()][0]).toContain('_Migrated.rednote.json');
+  });
+  it('reuses the granted directory handle throughout the current page session', async () => {
+    const files = new Map<string, string>();
+    const handle = {
+      queryPermission: vi.fn().mockResolvedValue('granted'),
+      requestPermission: vi.fn().mockResolvedValue('granted'),
+      async *values() {},
+      async getFileHandle(name: string, options?: { create?: boolean }) {
+        if (!options?.create && !files.has(name)) throw new DOMException('File not found', 'NotFoundError');
+        return {
+          getFile: async () => new Blob([files.get(name) ?? '']),
+          createWritable: async () => ({
+            write: async (text: string) => { files.set(name, text); },
+            close: async () => {},
+            abort: async () => {},
+          }),
+        };
+      },
+    };
+    vi.stubGlobal('window', { showDirectoryPicker: async () => handle });
+    const valid = (value: unknown): value is Draft => !!value && (value as Draft).version === 1;
+    await selectWorkingDirectory(valid);
+    database.set('rednote-working-directory-v1', {
+      queryPermission: vi.fn().mockResolvedValue('prompt'),
+      getFileHandle: vi.fn().mockRejectedValue(new DOMException('Permission denied', 'NotAllowedError')),
+    });
+    expect((await workingDirectoryAccess()).permission).toBe('granted');
+    await saveDocument('session', { ...initialDraft, title: 'Session draft' });
+    expect([...files.keys()][0]).toContain('Session draft.rednote.json');
   });
 });

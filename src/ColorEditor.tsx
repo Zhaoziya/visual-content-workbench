@@ -9,7 +9,7 @@ export default function ColorEditor({label,color,opacity,anchor,onColor,onOpacit
   const [hex,setHex]=useState(color);useEffect(()=>setHex(color),[color]);
   const channels=[1,3,5].map(i=>parseInt(color.slice(i,i+2),16));
   useLayoutEffect(()=>{
-    const place=()=>{const rect=anchor.getBoundingClientRect();const width=panel.current?.offsetWidth??280,height=panel.current?.offsetHeight??250;setPosition({left:Math.max(8,Math.min(rect.left,innerWidth-width-8)),top:rect.bottom+height+16<innerHeight?rect.bottom+8:Math.max(8,rect.top-height-8)});};
+    const place=()=>{const rect=anchor.getBoundingClientRect();const panelRect=panel.current?.getBoundingClientRect();const width=panelRect?.width??280,height=panelRect?.height??250;setPosition({left:Math.max(8,Math.min(rect.left,innerWidth-width-8)),top:rect.bottom+height+16<innerHeight?rect.bottom+8:Math.max(8,rect.top-height-8)});};
     place();window.addEventListener('resize',place);window.addEventListener('scroll',place,true);return()=>{window.removeEventListener('resize',place);window.removeEventListener('scroll',place,true);};
   },[anchor]);
   useEffect(()=>{

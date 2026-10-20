@@ -423,7 +423,7 @@ export default function Workspace() {
       {storageError && <p className="storage-error" role="alert">{storageError}</p>}
       <button type="button" className="storage-cancel" onClick={() => setPendingCreate(null)} disabled={storageBusy}>取消</button>
     </dialog>
-    <dialog className="storage-choice" ref={directoryDialog} aria-labelledby="directory-access-title" onCancel={event => { event.preventDefault(); if (!directoryBusy) setPendingDirectoryCreate(null); }} onClose={() => setPendingDirectoryCreate(null)}>
+    <dialog className="storage-choice directory-access" ref={directoryDialog} aria-labelledby="directory-access-title" onCancel={event => { event.preventDefault(); if (!directoryBusy) setPendingDirectoryCreate(null); }} onClose={() => setPendingDirectoryCreate(null)}>
       <h2 id="directory-access-title">重新连接工作目录</h2>
       <p>浏览器需要确认对此前选择的目录拥有写入权限。草稿和已有文件不会被清除。</p>
       <div className="storage-choice-actions">

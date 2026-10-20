@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import CodeMirror, { type ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { markdown } from '@codemirror/lang-markdown';
 import { EditorView } from '@codemirror/view';
-import { getStorageMode, saveDocument, type DraftRecord } from './drafts';
+import { getStorageMode, requestWorkingDirectoryPermission, saveDocument, selectWorkingDirectory, supportsWorkingDirectory, workingDirectoryAccess, type DraftRecord, type WorkingDirectory } from './drafts';
 import { toBlob } from 'html-to-image';
 import JSZip from 'jszip';
 import TurndownService from 'turndown';
@@ -48,6 +48,16 @@ function IconButton({label,onClick,children,disabled=false}:{label:string;onClic
 export default function App({record,onHome}:{record:DraftRecord;onHome:()=>void}){
   const [draft,setDraft]=useState<Draft>(()=>migrateDraft(record.draft));const hydrated=true;
   const [saveState,setSaveState]=useState('已保存');const [panel,setPanel]=useState<'background'|null>(null);
+  const [directoryAction,setDirectoryAction]=useState<'save'|'home'|null>(null);
+  const [directoryError,setDirectoryError]=useState('');
+  const [directoryBusy,setDirectoryBusy]=useState(false);
+  const [directoryNeedsAttention,setDirectoryNeedsAttention]=useState(false);
+  const [permissionIssue,setPermissionIssue]=useState(false);
+  const savedDraft=useRef(draft);
+  const latestDraft=useRef(draft);
+  latestDraft.current=draft;
+  const directoryDialog=useRef<HTMLDialogElement>(null);
+  const directoryHandle=useRef<WorkingDirectory|null>(null);
   const [editingColor,setEditingColor]=useState<{key:keyof Colors;label:string;anchor:HTMLButtonElement}|null>(null);
   const closeColor=useCallback(()=>setEditingColor(null),[]);
   const [selectedPage,setSelectedPage]=useState(0);const [pageSettingsOpen,setPageSettingsOpen]=useState(false);
@@ -75,8 +85,23 @@ export default function App({record,onHome}:{record:DraftRecord;onHome:()=>void}
   const backgroundRequest=useRef(0);
   const update=(values:Partial<Draft>)=>setDraft(d=>({...d,...values}));
   useEffect(()=>{
-    if(!hydrated)return;setSaveState('未保存');let active=true;const timer=setTimeout(()=>{setSaveState('保存中');saveDocument(record.id,draft).then(()=>{if(active)setSaveState('已保存');}).catch(()=>{if(active)setSaveState('保存失败');});},800);return()=>{active=false;clearTimeout(timer);};
+    if(!hydrated||savedDraft.current===draft)return;
+    setSaveState('未保存');let active=true;
+    const timer=setTimeout(()=>{
+      setSaveState('保存中');
+      saveDocument(record.id,draft).then(()=>{
+        savedDraft.current=draft;
+        if(active&&latestDraft.current===draft){setSaveState('已保存');setDirectoryNeedsAttention(false);}
+      }).catch(async()=>{
+        if(active&&latestDraft.current===draft){setSaveState('保存失败');try{const mode=await getStorageMode();if(active)setDirectoryNeedsAttention(mode==='folder');}catch{}}
+      });
+    },800);
+    return()=>{active=false;clearTimeout(timer);};
   },[draft,hydrated,record.id]);
+  useEffect(()=>{
+    if(directoryAction&&!directoryDialog.current?.open)directoryDialog.current?.showModal();
+    if(!directoryAction&&directoryDialog.current?.open)directoryDialog.current.close();
+  },[directoryAction]);
   useEffect(()=>{if(!message)return;const timer=setTimeout(()=>setMessage(''),5000);return()=>clearTimeout(timer);},[message]);
   useEffect(()=>{const body=normalizePromptSyntax(draft.body);const compact=compactImageReferences(body,draft.assets);if(compact||body!==draft.body)setDraft(previous=>previous.body===draft.body?{...previous,body,...compact}:previous);},[draft.body,draft.assets]);
   useEffect(()=>{
@@ -135,6 +160,12 @@ export default function App({record,onHome}:{record:DraftRecord;onHome:()=>void}
     catch{setMessage('背景读取失败，请选择 PNG、JPG 或 WebP 图片。');}
     finally{if(request===backgroundRequest.current)setPaletteBusy(false);}
   }
+  async function resetColors(){
+    const request=++backgroundRequest.current;setPaletteBusy(true);
+    try{const {colors}=await makeThemePalette(draft.background);if(request!==backgroundRequest.current)return;update({colors,colorOpacity:{}});setEditingColor(null);setMessage('已恢复当前主题的默认颜色');}
+    catch{setMessage('默认颜色读取失败，请检查背景图片。');}
+    finally{if(request===backgroundRequest.current)setPaletteBusy(false);}
+  }
   async function backgroundUpload(e:ChangeEvent<HTMLInputElement>){const file=e.target.files?.[0];e.target.value='';if(!file)return;
     if(file.size>15*1024*1024){setMessage('背景图片请控制在 15 MB 以内。');return;}
     try{await chooseBackground({id:'upload',name:file.name,image:await fileData(file),paper:'#f5f7fb'});}catch{setMessage('图片无法读取');}
@@ -179,8 +210,67 @@ export default function App({record,onHome}:{record:DraftRecord;onHome:()=>void}
       setMessage('草稿已导入');
     }catch(e){setMessage(e instanceof Error?e.message:'导入失败');}
   }
-  async function saveDraft(){try{await saveDocument(record.id,draft);setSaveState('已保存');setMessage((await getStorageMode())==='folder'?'草稿已保存到工作目录和当前浏览器':'草稿已保存到当前浏览器');}catch{setMessage('保存失败，请检查浏览器存储或工作目录权限。');}}
-  async function returnHome(){try{await saveDocument(record.id,draft);onHome();}catch{setSaveState('保存失败');setMessage('保存失败，请检查工作目录权限；仍停留在编辑器。');}}
+  async function showDirectoryRecovery(action:'save'|'home',reason=''){
+    try{const access=await workingDirectoryAccess();directoryHandle.current=access.handle??null;setDirectoryError(reason||(!access.handle?'原工作目录连接已丢失，请重新选择目录。':''));}
+    catch{directoryHandle.current=null;setDirectoryError(reason||'无法检查工作目录权限，请重新选择目录。');}
+    setPermissionIssue(true);setDirectoryNeedsAttention(true);setDirectoryAction(action);
+  }
+  function showSaveFailure(action:'save'|'home',reason:string){
+    setPermissionIssue(false);setDirectoryNeedsAttention(false);setDirectoryError(reason);setDirectoryAction(action);
+  }
+  async function saveDraft(exitAfter=false){
+    setSaveState('保存中');
+    const snapshot=latestDraft.current;
+    let mode:Awaited<ReturnType<typeof getStorageMode>>=null;
+    try{
+      mode=await getStorageMode();
+      if(mode==='folder'){
+        const access=await workingDirectoryAccess();
+        if(access.permission!=='granted'){
+          directoryHandle.current=access.handle??null;
+          setDirectoryError(access.handle?'':'原工作目录连接已丢失，请重新选择目录。');
+          setPermissionIssue(true);setDirectoryNeedsAttention(true);setSaveState('保存失败');setDirectoryAction(exitAfter?'home':'save');
+          return;
+        }
+      }
+      await saveDocument(record.id,snapshot);
+      savedDraft.current=snapshot;
+      if(latestDraft.current!==snapshot){if(exitAfter)await saveDraft(true);return;}
+      setSaveState('已保存');setDirectoryNeedsAttention(false);
+      if(exitAfter)onHome();
+      else setMessage(mode==='folder'?'草稿已保存到工作目录和当前浏览器':'草稿已保存到当前浏览器');
+    }catch(failure){
+      setSaveState('保存失败');
+      const isPermissionError=failure instanceof DOMException&&['NotAllowedError','SecurityError'].includes(failure.name);
+      const reason=failure instanceof Error?failure.message:'未知错误';
+      if(mode==='folder'&&isPermissionError)await showDirectoryRecovery(exitAfter?'home':'save',`工作目录没有写入权限：${reason}`);
+      else if(exitAfter)showSaveFailure('home',`保存失败：${reason}`);
+      else {setDirectoryNeedsAttention(false);setMessage(`保存失败：${reason}`);}
+    }
+  }
+  function closeDirectoryRecovery(){setDirectoryAction(null);directoryDialog.current?.close();}
+  async function authorizeDirectory(){
+    if(!directoryAction||directoryBusy||!directoryHandle.current)return;
+    const action=directoryAction;setDirectoryBusy(true);setDirectoryError('');
+    try{
+      if(await requestWorkingDirectoryPermission(directoryHandle.current)!=='granted'){
+        setDirectoryError('未获得写入权限，请授权或重新选择目录。');return;
+      }
+      closeDirectoryRecovery();void saveDraft(action==='home');
+    }catch{setDirectoryError('授权失败，请重新选择工作目录。');}
+    finally{setDirectoryBusy(false);}
+  }
+  async function reselectDirectory(){
+    if(!directoryAction||directoryBusy)return;
+    const action=directoryAction;setDirectoryBusy(true);setDirectoryError('');
+    try{await selectWorkingDirectory(validDraft);closeDirectoryRecovery();void saveDraft(action==='home');}
+    catch(failure){if(failure instanceof DOMException&&failure.name==='AbortError')return;setDirectoryError(failure instanceof Error?failure.message:'无法连接工作目录，请重试。');}
+    finally{setDirectoryBusy(false);}
+  }
+  async function returnHome(){
+    if(savedDraft.current===latestDraft.current){onHome();return;}
+    await saveDraft(true);
+  }
   async function exportImages(index?:number){
     if(pending||layout.errors.length){setMessage('请先处理预览中的排版或图片问题。');return;}
     setExportProgress('准备图片');
@@ -225,17 +315,17 @@ export default function App({record,onHome}:{record:DraftRecord;onHome:()=>void}
     <header className="app-header glass">
       <IconButton label="返回主页" onClick={returnHome}><Trees size={26}/></IconButton>
       <div className="document-heading"><FileText size={20}/><h1 title={draft.title||'未命名草稿'}>{draft.title.split('\n')[0]||'未命名草稿'}</h1></div>
-      <span className={`save-status ${saveState==='保存失败'?'status-error':''}`} role="status">{saveState==='保存失败'?<AlertCircle size={16}/>:saveState==='保存中'?<LoaderCircle size={16} className="spin"/>:<CheckCircle2 size={16}/>}<span>{saveState==='已保存'?'已自动保存':saveState}</span></span>
-      <div className="header-actions"><IconButton label="保存草稿" onClick={saveDraft}><Save size={20}/></IconButton><button className="button" disabled={!!exportProgress||!!longErrors.length} onClick={exportLongImage}>{exportProgress==='生成长图'?<LoaderCircle size={20} className="spin"/>:<Download size={20}/>}<span>{exportProgress==='生成长图'?exportProgress:'导出长图'}</span></button><button className="button primary" disabled={!!exportProgress||pending||!!layout.errors.length} onClick={()=>exportImages()}>{exportProgress&&exportProgress!=='生成长图'?<LoaderCircle size={20} className="spin"/>:<Download size={20}/>}<span>{exportProgress&&exportProgress!=='生成长图'?exportProgress:'导出图片'}</span></button></div>
+      {directoryNeedsAttention&&saveState==='保存失败'?<button type="button" className="save-status status-error save-reconnect" title="重新连接工作目录并保存" onClick={()=>void showDirectoryRecovery('save')}><AlertCircle size={16}/><span>保存失败 · 重新授权</span></button>:<span className={`save-status ${saveState==='保存失败'?'status-error':''}`} role="status">{saveState==='保存失败'?<AlertCircle size={16}/>:saveState==='保存中'?<LoaderCircle size={16} className="spin"/>:<CheckCircle2 size={16}/>}<span>{saveState==='已保存'?'已自动保存':saveState}</span></span>}
+      <div className="header-actions"><IconButton label="保存草稿" onClick={()=>void saveDraft()}><Save size={20}/></IconButton><button className="button" disabled={!!exportProgress||!!longErrors.length} onClick={exportLongImage}>{exportProgress==='生成长图'?<LoaderCircle size={20} className="spin"/>:<Download size={20}/>}<span>{exportProgress==='生成长图'?exportProgress:'导出长图'}</span></button><button className="button primary" disabled={!!exportProgress||pending||!!layout.errors.length} onClick={()=>exportImages()}>{exportProgress&&exportProgress!=='生成长图'?<LoaderCircle size={20} className="spin"/>:<Download size={20}/>}<span>{exportProgress&&exportProgress!=='生成长图'?exportProgress:'导出图片'}</span></button></div>
     </header>
     <section className="theme-toolbar glass" aria-label="主题工具栏">
       <button className={`button theme-selector ${panel==='background'?'selected':''}`} onClick={()=>toggle('background')} aria-expanded={panel==='background'}><Palette size={20}/><span>模板库</span><ChevronDown size={16}/></button><span className="active-template-name">{currentTemplate.name} · {draft.background.name}</span>
       <div className="toolbar-divider"/>
-      <div className="quick-colors">{colorRoles.map(({key,label})=><button key={key} className="quick-color" title={label} aria-label={`编辑${label}`} aria-expanded={editingColor?.key===key} onClick={e=>setEditingColor(editingColor?.key===key?null:{key,label,anchor:e.currentTarget})}><span className="color-swatch"><i style={{background:colorWithOpacity(draft.colors[key],draft.colorOpacity?.[key]??100)}}/></span><span>{label}</span></button>)}</div>
+      <div className="quick-colors">{colorRoles.map(({key,label})=><button key={key} className="quick-color" title={label} aria-label={`编辑${label}`} aria-expanded={editingColor?.key===key} onClick={e=>setEditingColor(editingColor?.key===key?null:{key,label,anchor:e.currentTarget})}><span className="color-swatch"><i style={{background:colorWithOpacity(draft.colors[key],draft.colorOpacity?.[key]??100)}}/></span><span>{label}</span></button>)}<button className="button quiet reset-colors" title="恢复当前主题的默认颜色" onClick={()=>void resetColors()} disabled={paletteBusy}>{paletteBusy?<LoaderCircle className="spin" size={16}/>:<RotateCcw size={16}/>}<span>恢复默认</span></button></div>
     </section>
     {panel&&<section className="settings-panel glass" aria-label="主题与排版设置">
       <div className="settings-top"><div className="template-options" role="group" aria-label="模板选择">{templateLibrary.map(template=><button key={template.id} className={`template-option ${currentTemplate.id===template.id?'active':''}`} aria-pressed={currentTemplate.id===template.id} disabled={paletteBusy} onClick={()=>{if(template.id===currentTemplate.id)return;update({templateId:template.id});chooseBackground(template.themes[0]);}}>{template.name}</button>)}</div><IconButton label="关闭设置" onClick={()=>setPanel(null)}><X size={20}/></IconButton></div>
-      {panel==='background'&&<><div className="theme-list-label">主题</div><div className="background-settings"><div className="template-list">{currentTemplate.themes.map(b=><button className={`template-item ${draft.background.id===b.id?'active':''}`} key={b.id} aria-label={b.name} aria-pressed={draft.background.id===b.id} onClick={()=>chooseBackground(b)} disabled={paletteBusy}><ThemeSwatch background={b} selected={draft.background.id===b.id}/><span>{b.name}</span></button>)}<button className={`template-item template-upload ${draft.background.id==='upload'?'active':''}`} disabled={paletteBusy} onClick={()=>backgroundInput.current?.click()}><span className="template-swatch" style={draft.background.id==='upload'?{backgroundImage:`url(${JSON.stringify(draft.background.image)})`}:undefined}>{draft.background.id==='upload'?<Check size={20}/>:<Upload size={24}/>}</span><span>手动上传</span></button></div><div className="background-actions"><button className="button quiet" onClick={()=>chooseBackground(currentTemplate.themes[0])}><RotateCcw size={18}/>恢复默认</button>{paletteBusy&&<LoaderCircle className="spin" size={20}/>}</div></div></>}
+      {panel==='background'&&<><div className="theme-list-label">主题</div><div className="background-settings"><div className="template-list">{currentTemplate.themes.map(b=><button className={`template-item ${draft.background.id===b.id?'active':''}`} key={b.id} aria-label={b.name} aria-pressed={draft.background.id===b.id} onClick={()=>chooseBackground(b)} disabled={paletteBusy}><ThemeSwatch background={b} selected={draft.background.id===b.id}/><span>{b.name}</span></button>)}<button className={`template-item template-upload ${draft.background.id==='upload'?'active':''}`} disabled={paletteBusy} onClick={()=>backgroundInput.current?.click()}><span className="template-swatch" style={draft.background.id==='upload'?{backgroundImage:`url(${JSON.stringify(draft.background.image)})`}:undefined}>{draft.background.id==='upload'?<Check size={20}/>:<Upload size={24}/>}</span><span>手动上传</span></button></div></div></>}
     </section>}
     <nav className="mobile-tabs" aria-label="工作区"><button className={mobileTab==='editor'?'active':''} onClick={()=>setMobileTab('editor')}>编辑</button><button className={mobileTab==='preview'?'active':''} onClick={()=>setMobileTab('preview')}>预览 · {previewMode==='long'?'长图':`${layout.pages.length} 页`}</button></nav>
     <div className={`workspace tab-${mobileTab}`}>
@@ -282,6 +372,21 @@ export default function App({record,onHome}:{record:DraftRecord;onHome:()=>void}
       </section>
     </div>
     {editingColor&&<ColorEditor label={editingColor.label} color={draft.colors[editingColor.key]} opacity={draft.colorOpacity?.[editingColor.key]??100} anchor={editingColor.anchor} onColor={value=>setDraft(previous=>({...previous,colors:{...previous.colors,[editingColor.key]:value}}))} onOpacity={value=>setDraft(previous=>({...previous,colorOpacity:{...previous.colorOpacity,[editingColor.key]:value}}))} onClose={closeColor}/>}
+    <dialog className="storage-choice directory-access editor-directory-access" ref={directoryDialog} aria-labelledby="editor-directory-access-title" onCancel={event=>{event.preventDefault();if(!directoryBusy)closeDirectoryRecovery();}} onClose={()=>setDirectoryAction(null)}>
+      <h2 id="editor-directory-access-title">{permissionIssue?'重新连接工作目录':'草稿未保存'}</h2>
+      <p>{permissionIssue?'保存前需要重新确认工作目录的写入权限。':'请重试保存；也可以不保存当前改动，直接返回主页。'}</p>
+      <div className="storage-choice-actions">
+        {permissionIssue?<>
+          {directoryHandle.current&&<button className="storage-folder" type="button" disabled={directoryBusy} onClick={()=>void authorizeDirectory()}><FolderOpen size={16}/>重新授权工作目录</button>}
+          <button type="button" disabled={directoryBusy||!supportsWorkingDirectory()} onClick={()=>void reselectDirectory()}><FolderOpen size={16}/>重新选择目录</button>
+        </>:<button type="button" disabled={directoryBusy} onClick={()=>{const action=directoryAction;closeDirectoryRecovery();void saveDraft(action==='home');}}>重试保存</button>}
+      </div>
+      {directoryError&&<p className="storage-error" role="alert">{directoryError}</p>}
+      <div className="editor-directory-footer">
+        {directoryAction==='home'&&<button type="button" className="storage-discard" disabled={directoryBusy} onClick={()=>{closeDirectoryRecovery();onHome();}}>不保存并返回主页</button>}
+        <button type="button" className="storage-cancel" disabled={directoryBusy} onClick={closeDirectoryRecovery}>留在编辑页</button>
+      </div>
+    </dialog>
     {message&&<div className="toast" role="status"><CheckCircle2 size={18}/>{message}<button aria-label="关闭消息" onClick={()=>setMessage('')}><X size={16}/></button></div>}
     <input hidden type="file" ref={importInput} accept=".md,.markdown,.txt,.json" onChange={importDraft}/><input hidden type="file" ref={backgroundInput} accept="image/png,image/jpeg,image/webp,image/gif" onChange={backgroundUpload}/><input hidden type="file" ref={imageInput} accept="image/png,image/jpeg,image/webp,image/gif" onChange={imageUpload}/>
     <div className="render-stage" ref={measure} style={noteStyle(draft)} aria-hidden="true"><NotePage draft={forPage(draft,0)} content={emptyPage} index={0} total={layout.pages.length}/><NotePage draft={forPage(draft,1)} content={emptyPage} index={1} total={layout.pages.length}/></div>

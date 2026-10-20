@@ -14,6 +14,7 @@ export type WorkingDirectory = FileSystemDirectoryHandle & {
   requestPermission(options: { mode: 'readwrite' }): Promise<PermissionState>;
 };
 const recordChanges = new Map<string, Promise<unknown>>();
+let activeDirectory: WorkingDirectory | undefined;
 const legacyFilename = (id: string) => `${filePrefix}${id}.json`;
 
 function queueRecordChange<T>(id: string, change: () => Promise<T>): Promise<T> {
@@ -23,7 +24,7 @@ function queueRecordChange<T>(id: string, change: () => Promise<T>): Promise<T> 
 }
 
 async function directory() {
-  return await get<StorageMode>(storageKey) === 'folder' ? await get<WorkingDirectory>(directoryKey) : undefined;
+  return await get<StorageMode>(storageKey) === 'folder' ? activeDirectory ?? await get<WorkingDirectory>(directoryKey) : undefined;
 }
 
 export async function workingDirectoryAccess() {
@@ -31,8 +32,10 @@ export async function workingDirectoryAccess() {
   return { handle, permission: handle ? await handle.queryPermission({ mode: 'readwrite' }) : null };
 }
 
-export function requestWorkingDirectoryPermission(handle: WorkingDirectory) {
-  return handle.requestPermission({ mode: 'readwrite' });
+export async function requestWorkingDirectoryPermission(handle: WorkingDirectory) {
+  const permission = await handle.requestPermission({ mode: 'readwrite' });
+  if (permission === 'granted') activeDirectory = handle;
+  return permission;
 }
 
 function suggestedFilename(record: DraftRecord) {
@@ -79,8 +82,7 @@ async function removeFile(handle: WorkingDirectory, name: string) {
 
 export async function getStorageMode(): Promise<StorageMode | null> {
   const mode = await get<StorageMode>(storageKey);
-  if (mode === 'browser') return mode;
-  return mode === 'folder' && await get(directoryKey) ? mode : null;
+  return mode === 'browser' || mode === 'folder' ? mode : null;
 }
 
 export function supportsWorkingDirectory() {
@@ -90,6 +92,7 @@ export function supportsWorkingDirectory() {
 export async function useBrowserStorage() {
   await set(storageKey, 'browser');
   await delMany([directoryKey]);
+  activeDirectory = undefined;
 }
 
 export async function selectWorkingDirectory(valid: (value: unknown) => value is Draft) {
@@ -123,6 +126,7 @@ export async function selectWorkingDirectory(valid: (value: unknown) => value is
   }
   await set(directoryKey, handle);
   await set(storageKey, 'folder');
+  activeDirectory = handle;
   return restored.size;
 }
 
@@ -132,6 +136,7 @@ export async function saveDocument(id: string, draft: Draft) {
     const now = Date.now();
     const record: DraftRecord = { id, draft, updatedAt: now, createdAt: previous?.createdAt ?? previous?.updatedAt ?? now, fileName: previous?.fileName };
     const handle = await directory();
+    if (await getStorageMode() === 'folder' && !handle) throw new Error('工作目录连接已丢失，请重新选择目录。');
     if (handle) {
       const nextName = await availableFilename(handle, record);
       record.fileName = nextName;
