@@ -4,7 +4,7 @@ import App, { validDraft } from './App';
 import { forPage, initialDraft } from './model';
 import { parseMarkdown } from './markdown';
 import NotePage from './NotePage';
-import { deleteDocument, getStorageMode, listDocuments, migrateLegacy, saveDocument, selectWorkingDirectory, supportsWorkingDirectory, useBrowserStorage, type DraftRecord, type StorageMode } from './drafts';
+import { deleteDocument, getStorageMode, listDocuments, migrateLegacy, requestWorkingDirectoryPermission, saveDocument, selectWorkingDirectory, supportsWorkingDirectory, useBrowserStorage, workingDirectoryAccess, type DraftRecord, type StorageMode, type WorkingDirectory } from './drafts';
 import './home.css';
 import DraftTransition, { type FlightOrigin } from './DraftTransition';
 import CaptureInspiration from './CaptureInspiration';
@@ -13,6 +13,7 @@ import { assetUrl } from './assetPath';
 const bubbleSizes = [294, 216, 258, 188, 232, 210, 242, 198, 230, 184].map(size => size * .75);
 const bubbleHeights = [[30, 65, 0, 95, 35], [340, 420, 335, 405, 350]];
 const bubbleOffsets = [[-24, 20, 0, -30, 18], [15, -30, 30, -5, -25]];
+type CreateIntent = { origin: FlightOrigin | null; fromLibrary: boolean; retrySave?: boolean };
 
 function DraftMiniature({ record, scale }: { record: DraftRecord; scale: number }) {
   const pageDraft = useMemo(() => forPage(record.draft, 0), [record.draft]);
@@ -31,9 +32,12 @@ export default function Workspace() {
   const [error, setError] = useState('');
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [storageMode, setStorageMode] = useState<StorageMode | null>(null);
-  const [pendingCreate, setPendingCreate] = useState<{ origin: FlightOrigin | null; fromLibrary: boolean } | null>(null);
+  const [pendingCreate, setPendingCreate] = useState<CreateIntent | null>(null);
   const [storageError, setStorageError] = useState('');
   const [storageBusy, setStorageBusy] = useState(false);
+  const [pendingDirectoryCreate, setPendingDirectoryCreate] = useState<CreateIntent | null>(null);
+  const [directoryError, setDirectoryError] = useState('');
+  const [directoryBusy, setDirectoryBusy] = useState(false);
   const [fadeIntoEditor, setFadeIntoEditor] = useState(false);
   const [libraryPage, setLibraryPage] = useState(0);
   const [selectedDraft, setSelectedDraft] = useState<string | null>(null);
@@ -62,6 +66,9 @@ export default function Workspace() {
   const backgroundVideo = useRef<HTMLVideoElement>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   const storageDialog = useRef<HTMLDialogElement>(null);
+  const directoryDialog = useRef<HTMLDialogElement>(null);
+  const directoryHandle = useRef<WorkingDirectory | null>(null);
+  const checkingDirectory = useRef(false);
   const jar = useRef<HTMLButtonElement>(null);
   const editorStage = useRef<HTMLDivElement>(null);
   const creating = useRef(false);
@@ -84,6 +91,10 @@ export default function Workspace() {
     if (pendingCreate && !storageDialog.current?.open) storageDialog.current?.showModal();
     if (!pendingCreate && storageDialog.current?.open) storageDialog.current.close();
   }, [pendingCreate]);
+  useEffect(() => {
+    if (pendingDirectoryCreate && !directoryDialog.current?.open) directoryDialog.current?.showModal();
+    if (!pendingDirectoryCreate && directoryDialog.current?.open) directoryDialog.current.close();
+  }, [pendingDirectoryCreate]);
   const completeJourney = useCallback(() => {
     focusAfterJourney.current = true;
     setCaptureFrozen(false);
@@ -152,7 +163,7 @@ export default function Workspace() {
     if (!libraryOpen) opening.current = false;
     const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (libraryOpen) {
-      if (!node.open) node.showModal();
+      if (!node.open) node.show();
       const mouth = jar.current?.querySelector('.jar-art')?.getBoundingClientRect();
       const box = node.getBoundingClientRect();
       if (mouth) node.style.transformOrigin = `${mouth.left + mouth.width / 2 - box.left}px ${mouth.top + mouth.height * .16 - box.top}px`;
@@ -169,6 +180,23 @@ export default function Workspace() {
       { duration:reduced ? 120 : libraryOpen ? 300 : 450, fill:'both' });
     animation.finished.then(() => { if (!libraryOpen) node.close(); }).catch(() => {});
     return () => { animation.cancel(); flights.forEach(flight => flight.cancel()); };
+  }, [libraryOpen]);
+
+  useEffect(() => {
+    if (!libraryOpen) return;
+    const closeOnOutside = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!jar.current?.contains(target) && !dialog.current?.contains(target)) setLibraryOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setLibraryOpen(false);
+    };
+    document.addEventListener('pointerdown', closeOnOutside);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutside);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
   }, [libraryOpen]);
 
   useEffect(() => {
@@ -220,10 +248,61 @@ export default function Workspace() {
     const origin = { x: rect.right - 24, y: rect.top + rect.height / 2 };
     beginDraft(origin, false);
   }
-  function beginDraft(origin: FlightOrigin | null, fromLibrary: boolean) {
-    if (creating.current || busy) return;
+  async function beginDraft(origin: FlightOrigin | null, fromLibrary: boolean) {
+    if (creating.current || checkingDirectory.current || busy) return;
     if (!storageMode) { setStorageError(''); setPendingCreate({ origin, fromLibrary }); return; }
+    if (storageMode === 'folder') {
+      checkingDirectory.current = true;
+      try {
+        const access = await workingDirectoryAccess();
+        if (access.permission !== 'granted') {
+          directoryHandle.current = access.handle ?? null;
+          setDirectoryError(access.handle ? '' : '原工作目录连接已丢失，请重新选择目录。');
+          setPendingDirectoryCreate({ origin, fromLibrary });
+          return;
+        }
+      } catch {
+        directoryHandle.current = null;
+        setDirectoryError('无法检查工作目录权限，请重新选择目录。');
+        setPendingDirectoryCreate({ origin, fromLibrary });
+        return;
+      } finally { checkingDirectory.current = false; }
+    }
     continueDraft(origin, fromLibrary);
+  }
+  function resumeDraft(intent: CreateIntent) {
+    directoryHandle.current = null;
+    setPendingDirectoryCreate(null);
+    directoryDialog.current?.close();
+    if (intent.retrySave) void createDraft(intent.origin, intent.fromLibrary);
+    else continueDraft(intent.origin, intent.fromLibrary);
+  }
+  async function authorizeDirectory() {
+    if (!pendingDirectoryCreate || directoryBusy || !directoryHandle.current) return;
+    const intent = pendingDirectoryCreate;
+    setDirectoryBusy(true); setDirectoryError('');
+    try {
+      if (await requestWorkingDirectoryPermission(directoryHandle.current) !== 'granted') {
+        setDirectoryError('未获得工作目录的写入权限，请授权或重新选择目录。');
+        return;
+      }
+      resumeDraft(intent);
+    } catch {
+      setDirectoryError('授权失败，请重新选择工作目录。');
+    } finally { setDirectoryBusy(false); }
+  }
+  async function reselectDirectory() {
+    if (!pendingDirectoryCreate || directoryBusy) return;
+    const intent = pendingDirectoryCreate;
+    setDirectoryBusy(true); setDirectoryError('');
+    try {
+      await selectWorkingDirectory(validDraft);
+      await refresh();
+      resumeDraft(intent);
+    } catch (failure) {
+      if (failure instanceof DOMException && failure.name === 'AbortError') return;
+      setDirectoryError(failure instanceof Error ? failure.message : '无法连接工作目录，请重试。');
+    } finally { setDirectoryBusy(false); }
   }
   function continueDraft(origin: FlightOrigin | null, fromLibrary: boolean) {
     if (fromLibrary) { void createDraft(null, true); return; }
@@ -259,7 +338,15 @@ export default function Workspace() {
         focusAfterJourney.current = true;
       } else if (origin) setJourney({ ...origin, isNew: true });
       open(record);
-    } catch { creating.current = false; setCapture(null); setCaptureFrozen(false); setError('新建失败，请检查浏览器存储权限后重试。'); }
+    } catch (failure) {
+      creating.current = false; setCapture(null); setCaptureFrozen(false);
+      if (storageMode === 'folder') {
+        try { directoryHandle.current = (await workingDirectoryAccess()).handle ?? null; }
+        catch { directoryHandle.current = null; }
+        setDirectoryError(failure instanceof Error ? `工作目录写入失败：${failure.message}` : '工作目录写入失败，请重新授权或选择目录。');
+        setPendingDirectoryCreate({ origin, fromLibrary, retrySave: true });
+      } else setError('新建失败，请检查浏览器存储权限后重试。');
+    }
     finally { setBusy(false); }
   }
   async function home() {
@@ -271,7 +358,6 @@ export default function Workspace() {
   async function showLibrary() {
     if (libraryOpen) {
       setLibraryOpen(false);
-      dialog.current?.close();
     } else {
       setCapture(null);setLibraryPage(0);setSelectedDraft(null);setLibraryOpen(true);
       try { await refresh(); } catch { setError('草稿列表读取失败，请重试。'); }
@@ -313,7 +399,7 @@ export default function Workspace() {
     </button>
     {capture&&<CaptureInspiration origin={capture} onCatch={createDraft} onFreeze={()=>{backgroundVideo.current?.pause();setCaptureFrozen(true);}} onCancel={()=>{setCapture(null);setCaptureFrozen(false);}}/>}
     {error && <p className="forest-error" role="alert">{error}</p>}
-    <dialog className="draft-library" ref={dialog} aria-label="草稿箱" onCancel={event => { event.preventDefault(); setLibraryOpen(false); }} onClose={() => { setLibraryOpen(false); setSelectedDraft(null); if (collapseTimer.current) clearTimeout(collapseTimer.current); setDeleteTarget(null); setDeleteError(''); if(!editing&&!capture) jar.current?.focus(); }} onClick={event => { if (event.target === event.currentTarget) { const box = event.currentTarget.getBoundingClientRect(); if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) setLibraryOpen(false); } }}>
+    <dialog className="draft-library" ref={dialog} aria-label="草稿箱" onCancel={event => { event.preventDefault(); setLibraryOpen(false); }} onClose={() => { setLibraryOpen(false); setSelectedDraft(null); if (collapseTimer.current) clearTimeout(collapseTimer.current); setDeleteTarget(null); setDeleteError(''); if(!editing&&!capture) jar.current?.focus(); }}>
       <header><div className="library-actions"><button className="forest-cta" autoFocus onClick={() => beginDraft(null,true)} disabled={busy}><Plus size={18}/><span>新建草稿</span></button></div></header>
       <div className="library-list" key={currentPage}>
         {visibleDocuments.map((record,index) => { const slot=bubbleSlots[index]; const neighbor=selectedIndex>=0&&selectedIndex!==index&&Math.hypot(slot.x-bubbleSlots[selectedIndex].x,slot.y-bubbleSlots[selectedIndex].y)<340; const dx=neighbor?slot.x-bubbleSlots[selectedIndex].x:0,dy=neighbor?slot.y-bubbleSlots[selectedIndex].y:0,distance=Math.hypot(dx,dy)||1; return <div className={`draft-item ${selectedDraft===record.id?'is-selected':''} ${neighbor?'is-neighbor':''}`} key={record.id} style={{'--bubble-x':`${visibleDocuments.length===1?0:slot.x}px`,'--bubble-y':`${slot.y}px`,'--bubble-size':`${slot.size}px`,'--bubble-x-compact':`${(visibleDocuments.length===1?0:slot.x)*.72}px`,'--bubble-y-compact':`${slot.y*.82}px`,'--avoid-x':`${dx/distance*48}px`,'--avoid-y':`${dy/distance*36}px`} as CSSProperties} onMouseEnter={()=>showPreview(record.id)} onMouseLeave={()=>hidePreview(record.id)} onBlur={event=>{if(!event.currentTarget.contains(event.relatedTarget as Node))hidePreview(record.id);}}>{deleteTarget===record.id?<div className="draft-delete-confirm" role="group" aria-label="确认删除草稿"><p>删除“{record.draft.title.split('\n')[0]||'未命名草稿'}”？</p><small>草稿及其中的图片将被删除，此操作无法撤销。</small><div><button className="library-cancel" disabled={deleting} onClick={()=>{setDeleteTarget(null);setDeleteError('');requestAnimationFrame(()=>dialog.current?.querySelector<HTMLButtonElement>(`[data-delete-id="${CSS.escape(record.id)}"]`)?.focus());}}>取消</button><button className="library-delete-confirm" disabled={deleting} onClick={()=>removeDraft(record.id)}>{deleting?<LoaderCircle size={18} className="spin"/>:<Trash2 size={18}/>}确认删除</button></div></div>:<><button className="draft-row" aria-label={`打开草稿：${record.draft.title.split('\n')[0]||'未命名草稿'}`} onFocus={()=>showPreview(record.id)} onClick={event => chooseDraft(record,event.currentTarget)}>
@@ -336,6 +422,16 @@ export default function Workspace() {
       {!supportsWorkingDirectory() && <p className="storage-warning">当前浏览器不支持选择本地工作目录。</p>}
       {storageError && <p className="storage-error" role="alert">{storageError}</p>}
       <button type="button" className="storage-cancel" onClick={() => setPendingCreate(null)} disabled={storageBusy}>取消</button>
+    </dialog>
+    <dialog className="storage-choice" ref={directoryDialog} aria-labelledby="directory-access-title" onCancel={event => { event.preventDefault(); if (!directoryBusy) setPendingDirectoryCreate(null); }} onClose={() => setPendingDirectoryCreate(null)}>
+      <h2 id="directory-access-title">重新连接工作目录</h2>
+      <p>浏览器需要确认对此前选择的目录拥有写入权限。草稿和已有文件不会被清除。</p>
+      <div className="storage-choice-actions">
+        {directoryHandle.current && <button type="button" className="storage-folder" onClick={() => void authorizeDirectory()} disabled={directoryBusy}><FolderOpen size={20}/>重新授权工作目录</button>}
+        <button type="button" onClick={() => void reselectDirectory()} disabled={directoryBusy || !supportsWorkingDirectory()}><FolderOpen size={20}/>重新选择目录</button>
+      </div>
+      {directoryError && <p className="storage-error" role="alert">{directoryError}</p>}
+      <button type="button" className="storage-cancel" onClick={() => setPendingDirectoryCreate(null)} disabled={directoryBusy}>取消</button>
     </dialog>
   </main>
     {editing&&<div ref={editorStage} className={`draft-editor-stage ${journey?'is-entering':''} ${fadeIntoEditor?'is-fading':''}`} inert={!!journey} onAnimationEnd={event=>{if(event.target===event.currentTarget)setFadeIntoEditor(false);}} key={editing.id}><App record={editing} onHome={home}/></div>}

@@ -8,7 +8,7 @@ vi.mock('idb-keyval', () => ({
   entries: async () => [...database.entries()],
   delMany: async (keys: string[]) => { keys.forEach(key => database.delete(key)); },
 }));
-import { deleteDocument, getStorageMode, listDocuments, migrateLegacy, saveDocument, selectWorkingDirectory, useBrowserStorage } from './drafts';
+import { deleteDocument, getStorageMode, listDocuments, migrateLegacy, requestWorkingDirectoryPermission, saveDocument, selectWorkingDirectory, useBrowserStorage, workingDirectoryAccess } from './drafts';
 
 describe('local draft library', () => {
   beforeEach(() => database.clear());
@@ -63,6 +63,20 @@ describe('local draft library', () => {
     expect(await getStorageMode()).toBeNull();
     await useBrowserStorage();
     expect(await getStorageMode()).toBe('browser');
+  });
+  it('checks and renews permission on a stored directory without changing storage mode', async () => {
+    const handle = {
+      queryPermission: vi.fn().mockResolvedValue('prompt'),
+      requestPermission: vi.fn().mockResolvedValue('granted'),
+    };
+    database.set('rednote-storage-mode-v1', 'folder');
+    database.set('rednote-working-directory-v1', handle);
+    const access = await workingDirectoryAccess();
+    expect(access.permission).toBe('prompt');
+    expect(access.handle).toBe(handle);
+    expect(await requestWorkingDirectoryPermission(access.handle!)).toBe('granted');
+    expect(handle.requestPermission).toHaveBeenCalledWith({ mode: 'readwrite' });
+    expect(await getStorageMode()).toBe('folder');
   });
   it('mirrors drafts to a chosen directory and restores them when reselected', async () => {
     const files = new Map<string, string>();

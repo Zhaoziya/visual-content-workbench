@@ -8,7 +8,7 @@ const directoryKey = 'rednote-working-directory-v1';
 const filePrefix = 'rednote-draft-';
 const fileSuffix = '.rednote.json';
 export type StorageMode = 'browser' | 'folder';
-type WorkingDirectory = FileSystemDirectoryHandle & {
+export type WorkingDirectory = FileSystemDirectoryHandle & {
   values(): AsyncIterable<FileSystemHandle>;
   queryPermission(options: { mode: 'readwrite' }): Promise<PermissionState>;
   requestPermission(options: { mode: 'readwrite' }): Promise<PermissionState>;
@@ -24,6 +24,15 @@ function queueRecordChange<T>(id: string, change: () => Promise<T>): Promise<T> 
 
 async function directory() {
   return await get<StorageMode>(storageKey) === 'folder' ? await get<WorkingDirectory>(directoryKey) : undefined;
+}
+
+export async function workingDirectoryAccess() {
+  const handle = await directory();
+  return { handle, permission: handle ? await handle.queryPermission({ mode: 'readwrite' }) : null };
+}
+
+export function requestWorkingDirectoryPermission(handle: WorkingDirectory) {
+  return handle.requestPermission({ mode: 'readwrite' });
 }
 
 function suggestedFilename(record: DraftRecord) {
